@@ -59,7 +59,7 @@ php -S 0.0.0.0:8080
 ```bash
 npm start -- --port=8080
 ```
-或(>= 5.2.0)
+Or (>= 5.2.0)
 ```bash
 npm install -g serve
 serve -p 8080

@@ -279,6 +279,7 @@ func CustomLoggingHandler(out io.Writer, h http.Handler, f LogFormatter) http.Ha
 	return loggingHandler{out, h, f}
 }
 
+// SimpleLoggingHandler returns a http.Handler that wraps h and logs requests to os.Stdout
 func SimpleLoggingHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t := time.Now()
