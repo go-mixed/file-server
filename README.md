@@ -28,7 +28,7 @@ $ go build
 ## Logging for stdout
 
 ```
-127.0.0.1 - - [2023-10-19T12:00:42.1319939+08:00] "GET /main.go HTTP/1.1" 200 0B 139.6052ms "http://127.0.0.1:8080/main.go" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+127.0.0.1 - - [2023-10-19T12:53:09.8420239+08:00] "GET / HTTP/1.1" 200 371 "" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36" 17.1343ms
 ```
 - client ip: the client's IP address
 - username: the HTTP auth username, if any
@@ -38,9 +38,9 @@ $ go build
 - protocol: the HTTP protocol
 - status: the HTTP status code
 - size: the HTTP response size
-- duration: the duration of processing the request
 - referer: the HTTP referer
 - user-agent: the HTTP user agent
+- duration: the duration of processing the request
 
 
 ## Alternative

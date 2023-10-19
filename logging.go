@@ -217,8 +217,7 @@ func buildCommonLogLine(req *http.Request, url url.URL, ts time.Time, status int
 	buf = append(buf, `" `...)
 	buf = append(buf, strconv.Itoa(status)...)
 	buf = append(buf, " "...)
-	buf = append(buf, strconv.Itoa(size)+" "...)
-	buf = append(buf, time.Since(ts).String()...)
+	buf = append(buf, strconv.Itoa(size)...)
 	return buf
 }
 
@@ -240,7 +239,10 @@ func writeCombinedLog(writer io.Writer, params LogFormatterParams) {
 	buf = appendQuoted(buf, params.Request.Referer())
 	buf = append(buf, `" "`...)
 	buf = appendQuoted(buf, params.Request.UserAgent())
-	buf = append(buf, '"', '\n')
+	buf = append(buf, '"')
+	buf = append(buf, " "+time.Since(params.TimeStamp).String()...)
+	buf = append(buf, '\n')
+
 	_, _ = writer.Write(buf)
 }
 
