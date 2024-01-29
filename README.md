@@ -6,6 +6,7 @@ It only supports GET requests, and HTML、CSS、JavaScript、image files.
 
 ## Usage
 
+### File server
 ```
 $ ./file-server
 
@@ -24,6 +25,26 @@ $ ./file-server -addr ":8080" -dir "/tmp"
 $ cd file-server
 $ go build
 ```
+
+### Transparent Proxy
+
+Enable the `-proxy` flag to enable the transparent proxy mode.
+```
+$ ./file-server -proxy
+
+# or
+$ ./file-server -proxy -addr ":8080" -dir "/tmp" -proxy
+
+```
+
+```
+curl https://localhost:8080/github.com/go-mixed/file-server
+```
+
+It'll proxy the request to the target server if:
+- the whole URL PATH doesn't exist in the local file system
+- the first segment of URL PATH before the "/" is a valid domain name
+
 
 ## Logging for stdout
 
