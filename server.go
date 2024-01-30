@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -29,15 +30,21 @@ func newMixedServer(dir string, proxyModel bool) *mixedServer {
 
 func (s *mixedServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.proxyServer != nil {
-
-		domain, _ := parseUrlPath(r.URL.Path)
-
-		// 文件、文件夹不存在，且域名合法
-		if _, err := os.Stat(filepath.Join(s.dir, r.URL.Path)); err != nil && domain != "" {
+		var host string
+		// 拥有X-Forwarded-Host头，直接转发
+		if host = r.Header.Get("X-Forwarded-Host"); host != "" {
 			s.proxyServer.ServeHTTP(w, r)
 			return
-		} else {
+		}
 
+		// 从url path中分离host、path
+		host, _ = parseUrlPath(r.URL.Path)
+		if host != "" {
+			// 文件、文件夹不存在，且域名合法
+			if _, err := os.Stat(filepath.Join(s.dir, r.URL.Path)); err != nil {
+				s.proxyServer.ServeHTTP(w, r)
+				return
+			}
 		}
 	}
 
@@ -47,7 +54,7 @@ func (s *mixedServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // "/domain.com/path/to/file" -> "domain.com", "/path/to/file"
-func parseUrlPath(originalUrlPath string) (domain string, urlPath string) {
+func parseUrlPath(originalUrlPath string) (host string, urlPath string) {
 	urlPath = originalUrlPath
 	if !strings.HasPrefix(urlPath, "/") {
 		urlPath = "/" + urlPath
@@ -57,11 +64,11 @@ func parseUrlPath(originalUrlPath string) (domain string, urlPath string) {
 	filePath := path.Clean(urlPath)
 
 	if segments := strings.Split(filePath, "/"); len(segments) > 1 {
-		domain = segments[1]
+		host = segments[1]
 	}
 
-	if domain != "" && checkDomain(domain) == nil {
-		return domain, urlPath[len(domain)+1:]
+	if host != "" && checkHost(host) == nil {
+		return host, urlPath[len(host)+1:]
 	}
 
 	return "", urlPath
@@ -69,16 +76,28 @@ func parseUrlPath(originalUrlPath string) (domain string, urlPath string) {
 
 // Please use the package https://github.com/chmike/domain as is it maintained up to date with tests.
 
-// checkDomain returns an error if the domain name is not valid.
+// checkHost returns an error if the domain name is not valid.
 // See https://tools.ietf.org/html/rfc1034#section-3.5 and
 // https://tools.ietf.org/html/rfc1123#section-2.
-func checkDomain(name string) error {
+func checkHost(name string) error {
+	// check for port
+	if segments := strings.SplitN(name, ":", 2); len(segments) == 2 {
+		name = segments[0]
+		port, err := strconv.Atoi(segments[1])
+		if err != nil {
+			return fmt.Errorf("host has invalid port '%s'", segments[1])
+		} else if port < 0 || port > 65535 {
+			return fmt.Errorf("host has invalid port '%s', port must be between 0 and 65535", segments[1])
+		}
+	}
+
 	switch {
 	case len(name) == 0:
 		return nil // an empty domain name will result in a cookie without a domain restriction
 	case len(name) > 255:
-		return fmt.Errorf("domain name length is %d, can't exceed 255", len(name))
+		return fmt.Errorf("host name length is %d, can't exceed 255", len(name))
 	}
+
 	var l int
 	for i := 0; i < len(name); i++ {
 		b := name[i]
@@ -86,13 +105,13 @@ func checkDomain(name string) error {
 			// check domain labels validity
 			switch {
 			case i == l:
-				return fmt.Errorf("domain has invalid character '.' at offset %d, label can't begin with a period", i)
+				return fmt.Errorf("host has invalid character '.' at offset %d, label can't begin with a period", i)
 			case i-l > 63:
-				return fmt.Errorf("domain byte length of label '%s' is %d, can't exceed 63", name[l:i], i-l)
+				return fmt.Errorf("host byte length of label '%s' is %d, can't exceed 63", name[l:i], i-l)
 			case name[l] == '-':
-				return fmt.Errorf("domain label '%s' at offset %d begins with a hyphen", name[l:i], l)
+				return fmt.Errorf("host label '%s' at offset %d begins with a hyphen", name[l:i], l)
 			case name[i-1] == '-':
-				return fmt.Errorf("domain label '%s' at offset %d ends with a hyphen", name[l:i], l)
+				return fmt.Errorf("host label '%s' at offset %d ends with a hyphen", name[l:i], l)
 			}
 			l = i + 1
 			continue
@@ -102,23 +121,23 @@ func checkDomain(name string) error {
 			// show the printable unicode character starting at byte offset i
 			c, _ := utf8.DecodeRuneInString(name[i:])
 			if c == utf8.RuneError {
-				return fmt.Errorf("domain has invalid rune at offset %d", i)
+				return fmt.Errorf("host has invalid rune at offset %d", i)
 			}
-			return fmt.Errorf("domain has invalid character '%c' at offset %d", c, i)
+			return fmt.Errorf("host has invalid character '%c' at offset %d", c, i)
 		}
 	}
 	// check top level domain validity
 	switch {
 	case l == len(name):
-		return fmt.Errorf("domain has missing top level domain, domain can't end with a period")
+		return fmt.Errorf("host has missing top level domain, domain can't end with a period")
 	case len(name)-l > 63:
-		return fmt.Errorf("domain's top level domain '%s' has byte length %d, can't exceed 63", name[l:], len(name)-l)
+		return fmt.Errorf("host's top level domain '%s' has byte length %d, can't exceed 63", name[l:], len(name)-l)
 	case name[l] == '-':
-		return fmt.Errorf("domain's top level domain '%s' at offset %d begin with a hyphen", name[l:], l)
+		return fmt.Errorf("host's top level domain '%s' at offset %d begin with a hyphen", name[l:], l)
 	case name[len(name)-1] == '-':
-		return fmt.Errorf("domain's top level domain '%s' at offset %d ends with a hyphen", name[l:], l)
+		return fmt.Errorf("host's top level domain '%s' at offset %d ends with a hyphen", name[l:], l)
 	case name[l] >= '0' && name[l] <= '9':
-		return fmt.Errorf("domain's top level domain '%s' at offset %d begins with a digit", name[l:], l)
+		return fmt.Errorf("host's top level domain '%s' at offset %d begins with a digit", name[l:], l)
 	}
 	return nil
 }

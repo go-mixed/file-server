@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httputil"
+	"strings"
 )
 
 // TransparentProxy 透明代理模式
@@ -27,12 +28,35 @@ func newTransparentProxy() *TransparentProxy {
 }
 
 func (t *TransparentProxy) modifyRequest(r *http.Request) {
-	domain, upath := parseUrlPath(r.URL.Path)
-	r.Host = domain
-	r.URL.Host = domain
-	r.URL.Path = upath
-	r.URL.Scheme = "https"
-	return
+	var host string
+	var urlPath string
+
+	// 拥有X-Forwarded-Host头，读取host、原URL path
+	if host = r.Header.Get("X-Forwarded-Host"); host != "" {
+		urlPath = r.URL.Path
+	} else { // 从url path中分离host、path
+		host, urlPath = parseUrlPath(r.URL.Path)
+	}
+
+	// host不包含端口，则从X-Forwarded-Port头中读取端口
+	if !strings.Contains(host, ":") {
+		if port := r.Header.Get("X-Forwarded-Port"); port != "" {
+			host += ":" + port
+		}
+	}
+
+	r.Host = host
+	r.URL.Host = host
+	r.URL.Path = urlPath
+
+	// 通过X-Forwarded-Proto、X-Forwarded-Scheme设置scheme
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		r.URL.Scheme = proto
+	} else if proto = r.Header.Get("X-Forwarded-Scheme"); proto != "" {
+		r.URL.Scheme = proto
+	} else {
+		r.URL.Scheme = "https"
+	}
 }
 
 func (t *TransparentProxy) modifyResponse(response *http.Response) error {
